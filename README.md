@@ -12,7 +12,7 @@ the leader changes, the old position is sold and the new one bought with
 everything. Shows the result against buy-and-hold SPY, with a chart, summary
 cards, and a year-by-year returns table.
 
-**Live at:** _(filled in after the first deploy — see below)_
+**Live at:** https://fvrivaslopez.github.io/top1-calculator/
 
 ## How it works
 
