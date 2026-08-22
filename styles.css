@@ -92,6 +92,32 @@ form#calc-form {
 .field.custom-date { display: none; }
 .field.custom-date.visible { display: block; }
 
+.field.checkbox-field {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.field.checkbox-field input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-height: unset;
+  accent-color: var(--accent1);
+  flex-shrink: 0;
+}
+.field.checkbox-field label {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+.field-hint {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: -6px 0 0;
+}
+
 button#calc-btn {
   grid-column: 1 / -1;
   min-height: 48px;

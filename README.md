@@ -28,6 +28,27 @@ cards, and a year-by-year returns table.
   only supported monthly). Verified against the Python engine directly: same
   inputs (\$10,000 initial, \$500/month, 15 years) produce identical output
   to the dollar (\$883,583 vs \$395,143 final value, 15.7% vs 9.6% CAGR).
+- **Spanish capital-gains tax** (checkbox, on by default): every time the
+  strategy switches leaders, that's a full sale of the old position, and the
+  realized gain is taxed under Spain's 2026 *base imponible del ahorro*
+  scale (19% / 21% / 23% / 27% / 30%, nationwide, no regional variation) —
+  the tax is deducted before the proceeds get reinvested in the new leader.
+  A calendar year that closes with a net loss becomes a carryforward that
+  can offset gains in the following 4 years ("compensación de pérdidas
+  patrimoniales"), applied automatically. SPY never sells in this
+  simulation, so it never realizes a gain and accrues zero tax — that gap is
+  the actual point of the toggle: it's what "worth switching even after
+  taxes" costs in practice. Implemented in `createSpanishTaxTracker()` in
+  `app.js`, unit-verified against hand-computed bracket/carryforward math
+  and a small synthetic 2-trade scenario before being trusted against the
+  real 40-year dataset.
+  **Known simplifications:** bracket thresholds are EUR amounts applied
+  directly to USD figures (no FX conversion — this calculator has no
+  currency conversion anywhere); dividends aren't taxed separately since
+  the price data already folds them into price appreciation
+  (`auto_adjust=True`); tax is deducted at the moment of each sale rather
+  than literally on the following year's filing date, which changes *when*
+  the cash leaves but not the total owed for a closed year.
 - The "who was #1 and when" table (`TOP1_HISTORICAL` in both
   `scripts/refresh_data.py` and `app.js`) is copied from
   `backtest.py` — same approximation, same source of truth. If that table

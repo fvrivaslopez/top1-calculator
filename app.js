@@ -11,6 +11,105 @@ const DATA_URL = "data/top1_history.json";
 
 let DATA = null; // loaded top1_history.json
 
+// ---- Spanish capital-gains tax (base imponible del ahorro, 2026 state scale) ----
+// Applies nationwide, no regional variation, to gains realized when a position
+// is sold (unrealized/mark-to-market gains are never taxed). Simplification:
+// bracket thresholds are EUR amounts applied directly to USD figures with no
+// FX conversion (this calculator has no currency conversion anywhere), and
+// dividends aren't modeled separately since the price data folds them into
+// price appreciation (yfinance auto_adjust=True) rather than paying them out
+// as separate taxable cash distributions.
+const ES_SAVINGS_TAX_BRACKETS = [
+  [0, 6000, 0.19],
+  [6000, 50000, 0.21],
+  [50000, 200000, 0.23],
+  [200000, 300000, 0.27],
+  [300000, Infinity, 0.30],
+];
+
+function progressiveTax(amount) {
+  if (amount <= 0) return 0;
+  let tax = 0;
+  for (const [lo, hi, rate] of ES_SAVINGS_TAX_BRACKETS) {
+    if (amount <= lo) break;
+    tax += (Math.min(amount, hi) - lo) * rate;
+  }
+  return tax;
+}
+
+/**
+ * Tracks realized gains/losses per calendar year and applies Spain's rule
+ * that a year's net capital loss can offset gains in the following 4 years
+ * ("compensación de pérdidas patrimoniales", base del ahorro). Tax owed on
+ * each sale is the marginal change in that year's bracket-taxed total, so
+ * a same-year loss after an already-taxed gain naturally nets back out
+ * (mirrors real annual settlement) instead of requiring a separate
+ * "amend last quarter's tax" step.
+ */
+function createSpanishTaxTracker() {
+  let carryforward = []; // [{year, remaining}], usable for year+1..year+4
+  const yearGain = {}; // year -> cumulative signed realized gain so far
+  const yearCF = {}; // year -> available carryforward, snapshotted when the year opens
+  let openYear = null;
+  let totalTaxPaid = 0;
+
+  function closeYear(y) {
+    const net = yearGain[y] || 0;
+    if (net < 0) {
+      carryforward.push({ year: y, remaining: -net });
+    } else if (net > 0) {
+      let toConsume = Math.min(yearCF[y] || 0, net);
+      for (const e of carryforward) {
+        if (toConsume <= 0) break;
+        if (y - e.year >= 1 && y - e.year <= 4 && e.remaining > 0) {
+          const take = Math.min(e.remaining, toConsume);
+          e.remaining -= take;
+          toConsume -= take;
+        }
+      }
+      carryforward = carryforward.filter((e) => e.remaining > 1e-6);
+    }
+  }
+
+  function openYearIfNeeded(y) {
+    if (openYear === null) {
+      openYear = y;
+    } else if (y !== openYear) {
+      for (let yy = openYear; yy < y; yy++) closeYear(yy);
+      openYear = y;
+    }
+    if (!(y in yearGain)) {
+      yearGain[y] = 0;
+      carryforward = carryforward.filter((e) => y - e.year <= 4);
+      yearCF[y] = carryforward.reduce((s, e) => s + e.remaining, 0);
+    }
+  }
+
+  function taxableForYear(cum, cf) {
+    return cum <= 0 ? 0 : Math.max(0, cum - cf);
+  }
+
+  return {
+    // Realizes a gain/loss on `date` (YYYY-MM-DD) and returns the tax due on
+    // this specific transaction (can be negative: a same-year loss handing
+    // back part of the tax already paid on an earlier gain that year).
+    realize(gain, date) {
+      const y = parseInt(date.slice(0, 4), 10);
+      openYearIfNeeded(y);
+      const prevCum = yearGain[y];
+      const newCum = prevCum + gain;
+      yearGain[y] = newCum;
+      const cf = yearCF[y] || 0;
+      const tax = progressiveTax(taxableForYear(newCum, cf)) - progressiveTax(taxableForYear(prevCum, cf));
+      totalTaxPaid += tax;
+      return tax;
+    },
+    totalTaxPaid() {
+      return totalTaxPaid;
+    },
+  };
+}
+
 async function loadData() {
   const res = await fetch(DATA_URL, { cache: "no-store" });
   if (!res.ok) throw new Error(`No se pudo cargar data/top1_history.json (HTTP ${res.status})`);
@@ -78,13 +177,15 @@ function contributionDaySet(dates, frequency) {
  * week, plus recurring contributions at the chosen cadence.
  * prices: { TICKER: [close, close, ...] } aligned to `dates`, null = no data that day.
  */
-function simulateStrategy(dates, prices, calTop1, initialCapital, contribAmount, contribFrequency) {
+function simulateStrategy(dates, prices, calTop1, initialCapital, contribAmount, contribFrequency, applyTax) {
   const rebalanceDays = groupBoundaryDays(dates, weekKey, "last");
   const contribDays = contributionDaySet(dates, contribFrequency);
+  const tax = applyTax ? createSpanishTaxTracker() : null;
 
   let capital = initialCapital;
   let currentTicker = null;
   let shares = 0;
+  let costBasis = 0; // net amount actually invested in the current position (for gain-on-sale)
   let totalInvested = initialCapital;
   const values = new Array(dates.length);
   const tickers = new Array(dates.length);
@@ -98,7 +199,9 @@ function simulateStrategy(dates, prices, calTop1, initialCapital, contribAmount,
       if (currentTicker && shares > 0) {
         const p = prices[currentTicker] ? prices[currentTicker][i] : null;
         if (p != null && p > 0) {
-          shares += (contribAmount * (1 - TRANSACTION_COST)) / p;
+          const invested = contribAmount * (1 - TRANSACTION_COST);
+          shares += invested / p;
+          costBasis += invested;
           totalInvested += contribAmount;
         } else {
           capital += contribAmount; // no valid price today, hold as cash
@@ -122,10 +225,18 @@ function simulateStrategy(dates, prices, calTop1, initialCapital, contribAmount,
       if (newPrice != null && newPrice > 0) {
         if (currentTicker && shares > 0) {
           const sellPrice = currentPrice || newPrice;
-          capital = shares * sellPrice * (1 - TRANSACTION_COST);
+          const proceeds = shares * sellPrice * (1 - TRANSACTION_COST);
+          if (tax) {
+            const gain = proceeds - costBasis;
+            const owed = tax.realize(gain, date);
+            capital = proceeds - owed;
+          } else {
+            capital = proceeds;
+          }
         }
         const netCapital = capital * (1 - TRANSACTION_COST);
         shares = netCapital / newPrice;
+        costBasis = netCapital;
         capital = 0;
         currentTicker = newTicker;
       }
@@ -144,7 +255,7 @@ function simulateStrategy(dates, prices, calTop1, initialCapital, contribAmount,
     tickers[i] = currentTicker;
   }
 
-  return { values, tickers, totalInvested };
+  return { values, tickers, totalInvested, totalTaxPaid: tax ? tax.totalTaxPaid() : 0 };
 }
 
 function simulateBenchmark(dates, benchPrices, initialCapital, contribAmount, contribFrequency) {
@@ -237,7 +348,7 @@ function runSimulation(cfg) {
   for (const t of Object.keys(DATA.prices)) prices[t] = DATA.prices[t].slice(startIdx);
 
   const calTop1 = buildTop1Calendar(DATA.top1Historical, dates);
-  const strat = simulateStrategy(dates, prices, calTop1, cfg.initialCapital, cfg.contribAmount, cfg.contribFrequency);
+  const strat = simulateStrategy(dates, prices, calTop1, cfg.initialCapital, cfg.contribAmount, cfg.contribFrequency, cfg.applyTax);
 
   const bench = prices[DATA.benchmarkTicker];
   const spy = simulateBenchmark(dates, bench, cfg.initialCapital, cfg.contribAmount, cfg.contribFrequency);
@@ -403,14 +514,22 @@ function renderResults(result, cfg) {
   const gainStrat = metricsStrat.finalValue - strat.totalInvested;
   const gainSpy = metricsSpy.finalValue - spy.totalInvested;
 
-  document.getElementById("summary-cards").innerHTML = [
+  const cards = [
     cardRow("Dinero invertido", fmtUSD(strat.totalInvested), fmtUSD(spy.totalInvested)),
-    cardRow("Valor final", fmtUSD(metricsStrat.finalValue), fmtUSD(metricsSpy.finalValue)),
+    cardRow(cfg.applyTax ? "Valor final (neto de impuestos)" : "Valor final", fmtUSD(metricsStrat.finalValue), fmtUSD(metricsSpy.finalValue)),
     cardRow("Ganancia neta", fmtUSDSigned(gainStrat), fmtUSDSigned(gainSpy)),
     cardRow("Rendimiento anual medio (CAGR)", fmtPct(metricsStrat.cagr), fmtPct(metricsSpy.cagr)),
     cardRow("Mayor caída temporal", fmtPct(metricsStrat.maxDrawdown), fmtPct(metricsSpy.maxDrawdown)),
     cardRow("Volatilidad anual", fmtPct(metricsStrat.annualVol), fmtPct(metricsSpy.annualVol)),
-  ].join("");
+  ];
+  if (cfg.applyTax) {
+    cards.push(`<div class="card">
+      <div class="label">Impuestos pagados (IRPF, plusvalías)</div>
+      <div class="row"><span class="tag" style="color:var(--accent1)">Top-1</span><span class="val top1">${fmtUSD(strat.totalTaxPaid)}</span></div>
+      <div class="row"><span class="tag" style="color:var(--accent2)">SPY</span><span class="val spy">$0 (nunca vende)</span></div>
+    </div>`);
+  }
+  document.getElementById("summary-cards").innerHTML = cards.join("");
 
   const rs = annualReturns(dates, strat.values);
   const rb = annualReturns(dates, spy.values);
@@ -459,6 +578,7 @@ function readConfig() {
   const contribAmount = parseFloat(document.getElementById("contrib-amount").value.replace(/,/g, "")) || 0;
   const contribFrequency = document.getElementById("contrib-frequency").value;
   const preset = document.getElementById("period-preset").value;
+  const applyTax = document.getElementById("apply-tax").checked;
   let startDate;
   if (preset === "custom") {
     startDate = document.getElementById("custom-date").value;
@@ -469,7 +589,7 @@ function readConfig() {
   if (!(initialCapital > 0)) throw new Error("El capital inicial debe ser mayor que 0.");
   if (contribAmount < 0) throw new Error("La aportación no puede ser negativa.");
   if (startDate < DATA.dates[0]) startDate = DATA.dates[0];
-  return { initialCapital, contribAmount, contribFrequency, startDate };
+  return { initialCapital, contribAmount, contribFrequency, startDate, applyTax };
 }
 
 function showError(msg) {
