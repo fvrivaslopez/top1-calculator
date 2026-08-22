@@ -31,3 +31,4 @@ jobs:
           git add data/top1_history.json
           git diff --cached --quiet && echo "No changes." || git commit -m "Weekly price data refresh"
           git push
+
