@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Calculadora Top-1 S&amp;P 500</title>
+<meta name="description" content="Simula cómo habría crecido tu dinero invirtiendo siempre en la mayor empresa del S&P 500, con rebalanceo semanal.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>📈 Calculadora — Estrategia Top-1 del S&amp;P 500</h1>
+    <p>
+      Cada semana, todo el capital va a la empresa con mayor capitalización de mercado
+      del S&amp;P 500 en ese momento. Si el liderazgo cambia, se vende todo y se compra
+      la nueva número uno. Prueba distintos capitales, aportaciones y periodos para ver
+      cómo habría ido esta estrategia frente a comprar y mantener el S&amp;P 500 completo (SPY).
+    </p>
+  </header>
+
+  <div id="error-box" class="error-box" style="display:none"></div>
+
+  <section class="panel">
+    <h2>Configura la simulación</h2>
+    <form id="calc-form">
+      <div class="field">
+        <label for="initial-capital">Capital inicial (USD)</label>
+        <input type="text" inputmode="decimal" id="initial-capital" value="10000" required>
+      </div>
+      <div class="field">
+        <label for="contrib-amount">Aportación</label>
+        <input type="text" inputmode="decimal" id="contrib-amount" value="500">
+      </div>
+      <div class="field">
+        <label for="contrib-frequency">Frecuencia de aportación</label>
+        <select id="contrib-frequency">
+          <option value="weekly">Semanal</option>
+          <option value="monthly" selected>Mensual</option>
+          <option value="yearly">Anual</option>
+          <option value="none">Ninguna (solo capital inicial)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="period-preset">Periodo</label>
+        <select id="period-preset">
+          <option value="5">Últimos 5 años</option>
+          <option value="10">Últimos 10 años</option>
+          <option value="15" selected>Últimos 15 años</option>
+          <option value="20">Últimos 20 años</option>
+          <option value="all">Desde 1985 (máximo)</option>
+          <option value="custom">Fecha personalizada…</option>
+        </select>
+      </div>
+      <div class="field custom-date" id="custom-date-field">
+        <label for="custom-date">Fecha de inicio</label>
+        <input type="date" id="custom-date">
+      </div>
+      <button type="submit" id="calc-btn" disabled>Calcular</button>
+    </form>
+  </section>
+
+  <p id="status-line">Cargando datos históricos…</p>
+
+  <div id="results">
+    <section class="panel">
+      <h2>¿Cómo habría crecido tu dinero?</h2>
+      <div class="chart-box">
+        <canvas id="value-chart"></canvas>
+      </div>
+      <div class="legend-line">
+        <span><span class="swatch" style="background:#00d4aa"></span>Estrategia Top-1</span>
+        <span><span class="swatch" style="background:#6366f1"></span>S&amp;P 500 completo (SPY)</span>
+        <span><span class="swatch" style="background:#8a90a3"></span>Dinero aportado</span>
+      </div>
+      <div class="legend-line" id="era-legend" style="margin-top:14px"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Resumen de resultados</h2>
+      <div class="cards-grid" id="summary-cards"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Rentabilidad por año</h2>
+      <div class="table-scroll">
+        <table id="annual-table">
+          <thead>
+            <tr><th>Año</th><th>Top-1</th><th>SPY</th></tr>
+          </thead>
+          <tbody id="annual-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    Simulación histórica con fines educativos — no es asesoramiento financiero.<br>
+    Datos: Yahoo Finance, actualizados semanalmente. Incluye un coste de transacción del 0,1% por operación.<br>
+    "Quién fue el número 1 y cuándo" se basa en una tabla histórica aproximada, no en un recálculo diario real
+    (el bot que opera en real sí recalcula el ranking completo cada semana).
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

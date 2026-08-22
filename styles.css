@@ -1,0 +1,200 @@
+:root {
+  --bg: #0d0f14;
+  --panel: #13161e;
+  --card: #181c28;
+  --grid: #1e2230;
+  --text: #e8eaf0;
+  --muted: #8a90a3;
+  --accent1: #00d4aa; /* Top-1 strategy */
+  --accent2: #6366f1; /* SPY benchmark */
+  --accent3: #f59e0b; /* highlights */
+  --red: #f43f5e;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
+header.hero {
+  text-align: center;
+  padding: 28px 8px 20px;
+}
+
+header.hero h1 {
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+  margin: 0 0 10px;
+}
+
+header.hero p {
+  color: var(--muted);
+  max-width: 640px;
+  margin: 0 auto;
+  line-height: 1.5;
+  font-size: 0.98rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+form#calc-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.field label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.field input, .field select {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--grid);
+  background: #0f1219;
+  color: var(--text);
+  font-size: 1rem;
+  min-height: 44px;
+}
+
+.field input:focus, .field select:focus {
+  outline: 2px solid var(--accent1);
+  outline-offset: 1px;
+}
+
+.field.custom-date { display: none; }
+.field.custom-date.visible { display: block; }
+
+button#calc-btn {
+  grid-column: 1 / -1;
+  min-height: 48px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent1);
+  color: #04211b;
+  font-weight: 700;
+  font-size: 1.02rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+button#calc-btn:hover { filter: brightness(1.08); }
+button#calc-btn:disabled { opacity: 0.6; cursor: wait; }
+
+#status-line {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: -6px 0 16px;
+  min-height: 1.2em;
+}
+
+#results { display: none; }
+#results.visible { display: block; }
+
+.chart-box {
+  position: relative;
+  width: 100%;
+  height: 380px;
+}
+
+.legend-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.legend-line span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--grid);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.card .label { color: var(--muted); font-size: 0.8rem; margin-bottom: 8px; }
+.card .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.card .row:last-child { margin-bottom: 0; }
+.card .tag { font-size: 0.72rem; color: var(--muted); }
+.card .val { font-weight: 700; font-size: 1.05rem; }
+.val.top1 { color: var(--accent1); }
+.val.spy { color: var(--accent2); }
+.val.neg { color: var(--red); }
+
+table#annual-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+table#annual-table th, table#annual-table td {
+  padding: 8px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--grid);
+}
+table#annual-table th:first-child, table#annual-table td:first-child { text-align: left; }
+table#annual-table th { color: var(--muted); font-weight: 600; }
+.pos { color: var(--accent1); }
+.neg { color: var(--red); }
+
+.table-scroll { overflow-x: auto; }
+
+footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  margin-top: 30px;
+  padding: 0 8px;
+}
+
+.error-box {
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid var(--red);
+  color: #ffb4c0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 480px) {
+  .panel { padding: 16px; }
+  .chart-box { height: 300px; }
+}
